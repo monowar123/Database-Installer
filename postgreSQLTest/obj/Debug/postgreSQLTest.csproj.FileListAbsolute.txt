@@ -1,0 +1,33 @@
+F:\postgreSQLTest\postgreSQLTest\bin\Debug\postgreSQLTest.exe.config
+F:\postgreSQLTest\postgreSQLTest\bin\Debug\postgreSQLTest.exe
+F:\postgreSQLTest\postgreSQLTest\bin\Debug\postgreSQLTest.pdb
+F:\postgreSQLTest\postgreSQLTest\bin\Debug\Npgsql.dll
+F:\postgreSQLTest\postgreSQLTest\obj\Debug\postgreSQLTest.Properties.Resources.resources
+F:\postgreSQLTest\postgreSQLTest\obj\Debug\postgreSQLTest.csproj.GenerateResource.Cache
+F:\postgreSQLTest\postgreSQLTest\obj\Debug\postgreSQLTest.exe
+F:\postgreSQLTest\postgreSQLTest\obj\Debug\postgreSQLTest.pdb
+F:\postgreSQLTest\postgreSQLTest\obj\Debug\postgreSQLTest.frmCreateNewDB.resources
+F:\postgreSQLTest\postgreSQLTest\obj\Debug\postgreSQLTest.frmMain.resources
+F:\postgreSQLTest\postgreSQLTest\bin\Debug\Mono.Security.dll
+F:\postgreSQLTest\postgreSQLTest\obj\Debug\postgreSQLTest.csprojResolveAssemblyReference.cache
+F:\My_Task\postgreSQLTest\postgreSQLTest\bin\Debug\postgreSQLTest.exe.config
+F:\My_Task\postgreSQLTest\postgreSQLTest\obj\Debug\postgreSQLTest.exe
+F:\My_Task\postgreSQLTest\postgreSQLTest\obj\Debug\postgreSQLTest.pdb
+F:\My_Task\postgreSQLTest\postgreSQLTest\bin\Debug\postgreSQLTest.exe
+F:\My_Task\postgreSQLTest\postgreSQLTest\bin\Debug\postgreSQLTest.pdb
+F:\My_Task\postgreSQLTest\postgreSQLTest\obj\Debug\postgreSQLTest.frmCreateNewDB.resources
+F:\My_Task\postgreSQLTest\postgreSQLTest\obj\Debug\postgreSQLTest.frmMain.resources
+F:\My_Task\postgreSQLTest\postgreSQLTest\obj\Debug\postgreSQLTest.Properties.Resources.resources
+F:\My_Task\postgreSQLTest\postgreSQLTest\obj\Debug\postgreSQLTest.csproj.GenerateResource.Cache
+F:\My_Task\postgreSQLTest\postgreSQLTest\obj\Debug\postgreSQLTest.frmInstallSummary.resources
+F:\My_Task\Database Installer\postgreSQLTest\bin\Debug\postgreSQLTest.exe.config
+F:\My_Task\Database Installer\postgreSQLTest\obj\Debug\postgreSQLTest.exe
+F:\My_Task\Database Installer\postgreSQLTest\obj\Debug\postgreSQLTest.pdb
+F:\My_Task\Database Installer\postgreSQLTest\bin\Debug\postgreSQLTest.exe
+F:\My_Task\Database Installer\postgreSQLTest\bin\Debug\postgreSQLTest.pdb
+F:\My_Task\Database Installer\postgreSQLTest\obj\Debug\postgreSQLTest.frmCreateNewDB.resources
+F:\My_Task\Database Installer\postgreSQLTest\obj\Debug\postgreSQLTest.frmInstallSummary.resources
+F:\My_Task\Database Installer\postgreSQLTest\obj\Debug\postgreSQLTest.frmMain.resources
+F:\My_Task\Database Installer\postgreSQLTest\obj\Debug\postgreSQLTest.Properties.Resources.resources
+F:\My_Task\Database Installer\postgreSQLTest\obj\Debug\postgreSQLTest.csproj.GenerateResource.Cache
+F:\My_Task\Database Installer\postgreSQLTest\bin\Debug\Mono.Security.dll

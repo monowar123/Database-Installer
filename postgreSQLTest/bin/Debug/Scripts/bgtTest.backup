@@ -1,0 +1,980 @@
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 9.2.4
+-- Dumped by pg_dump version 9.3.3
+-- Started on 2016-02-17 10:53:20
+
+SET statement_timeout = 0;
+--SET lock_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+
+SET search_path = public, pg_catalog;
+
+--
+-- TOC entry 222 (class 1255 OID 34719)
+-- Name: adjust_year_week(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION adjust_year_week(p_week_str text) RETURNS text
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+	strlen integer;
+	ret_str text;
+	
+BEGIN
+
+	--SET strlen =0;
+	--SET strlen = length(p_week_str);
+
+	if length(p_week_str) = 5 then
+
+		ret_str = SUBSTRING(p_week_str,1,4) ||  '0' || SUBSTRING(p_week_str,5,5);
+
+
+	else
+
+		ret_str = p_week_str;
+	end if;
+
+
+	return ret_str;
+	
+END;
+$$;
+
+
+ALTER FUNCTION public.adjust_year_week(p_week_str text) OWNER TO AOXX;
+
+--
+-- TOC entry 223 (class 1255 OID 34720)
+-- Name: get_activity_code(character varying, character varying); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION get_activity_code(proj_code character varying, task_summary character varying) RETURNS character varying
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+IF (proj_code = 'JT01') AND (task_summary LIKE '%:%') THEN  
+      RETURN trim( substring(task_summary,1,position(':' in task_summary)-1));
+END IF;
+RETURN null;
+END;$$;
+
+
+ALTER FUNCTION public.get_activity_code(proj_code character varying, task_summary character varying) OWNER TO AOXX;
+
+--
+-- TOC entry 224 (class 1255 OID 34721)
+-- Name: getdifftsinsec(timestamp without time zone); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION getdifftsinsec(lastactivity timestamp without time zone) RETURNS numeric
+    LANGUAGE plpgsql
+    AS $$     DECLARE   RESULT NUMERIC;  BEGIN  RESULT := EXTRACT(HOUR FROM LOCALTIMESTAMP - LASTACTIVITY)*3600 +  EXTRACT(MINUTE FROM LOCALTIMESTAMP - LASTACTIVITY)*60 +  EXTRACT( SECOND FROM LOCALTIMESTAMP - LASTACTIVITY);    return RESULT; END; $$;
+
+
+ALTER FUNCTION public.getdifftsinsec(lastactivity timestamp without time zone) OWNER TO AOXX;
+
+--
+-- TOC entry 225 (class 1255 OID 34722)
+-- Name: getkiturlbysecuritycheck(character varying); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION getkiturlbysecuritycheck(character varying) RETURNS character varying
+    LANGUAGE plpgsql
+    AS $_$    
+DECLARE  
+  url character varying;
+  _securityId alias for $1; 
+
+BEGIN  
+-- Delete if the security id expired timeout
+DELETE FROM securityinfo S WHERE S.securityid = _securityId AND getDiffTSInSec(S.LAST_ACCESS_TIME) > S.TIMEOUT; 
+
+SELECT kitserverurl into url FROM SECURITYINFO S
+      where getDiffTSInSec(S.LAST_ACCESS_TIME) < S.TIMEOUT and S.SECURITYID= _securityId;
+      
+return url;
+  
+END;
+$_$;
+
+
+ALTER FUNCTION public.getkiturlbysecuritycheck(character varying) OWNER TO AOXX;
+
+--
+-- TOC entry 226 (class 1255 OID 34723)
+-- Name: remove_old_session(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION remove_old_session() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$    
+DECLARE  
+  TS_S_REC sys_securityinfo%rowtype;
+
+--    
+DECLARE TS_S CURSOR 
+      FOR
+      SELECT * FROM SYS_SECURITYINFO S
+      where getDiffTSInSec(S.LAST_ACCESS_TIME) > S.TIMEOUT ;
+
+BEGIN
+OPEN TS_S; 
+  loop
+  fetch TS_S into TS_S_REC;
+  if FOUND = true  then
+   DELETE FROM SYS_SECURITYINFO
+   WHERE SECURITYID= TS_S_REC.SECURITYID; 
+  else
+   exit;
+  end if;
+ end loop;
+return TS_S_REC;
+END;
+$$;
+
+
+ALTER FUNCTION public.remove_old_session() OWNER TO AOXX;
+
+--
+-- TOC entry 227 (class 1255 OID 34724)
+-- Name: update_hit_crm(text, text, text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION update_hit_crm(oldid text, newkey text, update_by text) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+	strlen integer;
+	ret_str text;
+	
+BEGIN
+
+ update hit_crm 
+  set Compname = c.naam,
+     url = c.www,
+   Paddress1 = c.adres,
+   Paddress2 = trim(coalesce(c.postcode,'') || ' ' || coalesce(c.plaats,'')),
+   Country = 'NL',
+   Vaddress = trim(coalesce(c.adresbz,'') || ',' || coalesce(c.postcodebz,'') || ',' || coalesce(c.plaatsbz,'')),
+   Cphone = c.telefoon,
+   Person = trim(coalesce(c.titel,'') || ' ' || coalesce(c.aanhef,'') || ' ' || coalesce(c.voornaam,'') || ' ' || coalesce(c.kontaktprs,'')),
+   Pphone = c.telmobiel,
+   PMail = c.email,
+   CompMemo = NULL,
+   Persons = c.opmerking,
+   Newsletter = NULL,
+   Action = NULL,
+   Contacts = c.verslag,
+   Accman = NULL,
+   Actdate = NULL,
+   Updated = current_date,
+   UpdBy = update_by
+   from (select * from naw_best n join personen  p on n.zoeknaam = p.zoekcode where p.id = cast(oldId as integer)) as c
+   where hit_crm.crcode = newKey;
+	
+END;
+$$;
+
+
+ALTER FUNCTION public.update_hit_crm(oldid text, newkey text, update_by text) OWNER TO AOXX;
+
+--
+-- TOC entry 170 (class 1259 OID 34725)
+-- Name: PERSONEN_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "PERSONEN_id_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public."PERSONEN_id_seq" OWNER TO AOXX;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- TOC entry 171 (class 1259 OID 34727)
+-- Name: sys_commonfunctions; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE sys_commonfunctions (
+    id integer NOT NULL,
+    role_id character varying(100) NOT NULL,
+    function_code character varying(100) NOT NULL,
+    action character varying(100) NOT NULL,
+    weight integer NOT NULL
+);
+
+
+ALTER TABLE public.sys_commonfunctions OWNER TO AOXX;
+
+--
+-- TOC entry 172 (class 1259 OID 34730)
+-- Name: chalo_commonfunctions_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE chalo_commonfunctions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.chalo_commonfunctions_id_seq OWNER TO AOXX;
+
+--
+-- TOC entry 2102 (class 0 OID 0)
+-- Dependencies: 172
+-- Name: chalo_commonfunctions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE chalo_commonfunctions_id_seq OWNED BY sys_commonfunctions.id;
+
+
+--
+-- TOC entry 173 (class 1259 OID 34732)
+-- Name: sys_metadata; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE sys_metadata (
+    id integer NOT NULL,
+    fieldname character varying NOT NULL,
+    fieldtype character varying,
+    caption character varying,
+    mandatory character varying(3) NOT NULL,
+    defaultvalue character varying,
+    lovc character varying,
+    lovp character varying,
+    lovcp character varying,
+    minvalue character varying,
+    maxvalue character varying,
+    decimals character varying,
+    strlen integer,
+    displen integer,
+    allowedit boolean DEFAULT true NOT NULL,
+    tip character varying,
+    tablename character varying,
+    errorlevel integer DEFAULT 0 NOT NULL,
+    field_specialty "char",
+    field_order integer,
+    field_group character varying,
+    report_code character varying(50),
+    CONSTRAINT metadata_fieldtype_check CHECK (((fieldtype)::text = ANY (ARRAY[('STR'::character varying)::text, ('Text'::character varying)::text, ('INT'::character varying)::text, ('FLOAT'::character varying)::text, ('Date'::character varying)::text, ('OBJLEN'::character varying)::text, ('OBJAREA'::character varying)::text, ('LASTUPDATE'::character varying)::text])))
+);
+
+
+ALTER TABLE public.sys_metadata OWNER TO AOXX;
+
+--
+-- TOC entry 174 (class 1259 OID 34741)
+-- Name: metadata_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE metadata_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.metadata_id_seq OWNER TO AOXX;
+
+--
+-- TOC entry 2103 (class 0 OID 0)
+-- Dependencies: 174
+-- Name: metadata_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE metadata_id_seq OWNED BY sys_metadata.id;
+
+
+--
+-- TOC entry 175 (class 1259 OID 34743)
+-- Name: sys_report_functions; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE sys_report_functions (
+    report_code character varying(50) DEFAULT 'rc'::character varying,
+    function_name character varying(20) DEFAULT 'fn'::character varying,
+    order_position integer,
+    parameters text DEFAULT 'par'::text,
+    is_report_specific boolean,
+    id integer NOT NULL,
+    is_group_specific boolean
+);
+
+
+ALTER TABLE public.sys_report_functions OWNER TO AOXX;
+
+--
+-- TOC entry 176 (class 1259 OID 34752)
+-- Name: report_functions_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE report_functions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.report_functions_id_seq OWNER TO AOXX;
+
+--
+-- TOC entry 2104 (class 0 OID 0)
+-- Dependencies: 176
+-- Name: report_functions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE report_functions_id_seq OWNED BY sys_report_functions.id;
+
+
+--
+-- TOC entry 177 (class 1259 OID 34754)
+-- Name: sys_report_linking; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE sys_report_linking (
+    id integer NOT NULL,
+    function_name character varying(50) NOT NULL,
+    tooltip character varying(100) NOT NULL,
+    source_report_code character varying(50) NOT NULL,
+    source_keyfield character varying(50) NOT NULL,
+    destination_report_code character varying(50) NOT NULL,
+    destination_keyfield character varying(50) NOT NULL
+);
+
+
+ALTER TABLE public.sys_report_linking OWNER TO AOXX;
+
+--
+-- TOC entry 178 (class 1259 OID 34757)
+-- Name: report_linking_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE report_linking_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.report_linking_id_seq OWNER TO AOXX;
+
+--
+-- TOC entry 2105 (class 0 OID 0)
+-- Dependencies: 178
+-- Name: report_linking_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE report_linking_id_seq OWNED BY sys_report_linking.id;
+
+
+--
+-- TOC entry 179 (class 1259 OID 34759)
+-- Name: sys_securityinfo; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE sys_securityinfo (
+    securityid character varying(32),
+    timeout integer,
+    last_access_time timestamp without time zone,
+    userid character varying(50),
+    id integer NOT NULL
+);
+
+
+ALTER TABLE public.sys_securityinfo OWNER TO AOXX;
+
+--
+-- TOC entry 180 (class 1259 OID 34762)
+-- Name: securityinfo_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE securityinfo_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.securityinfo_id_seq OWNER TO AOXX;
+
+--
+-- TOC entry 2106 (class 0 OID 0)
+-- Dependencies: 180
+-- Name: securityinfo_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE securityinfo_id_seq OWNED BY sys_securityinfo.id;
+
+
+--
+-- TOC entry 181 (class 1259 OID 34764)
+-- Name: sys_attachment_settings; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE sys_attachment_settings (
+    report_code character varying(50) NOT NULL,
+    has_bijlagen boolean DEFAULT true,
+    has_revision boolean DEFAULT false,
+    has_history boolean DEFAULT false,
+    how_many_chars integer,
+    show_all_files boolean DEFAULT false,
+    revision_keyfield character varying(50),
+    attachment_keyfield character varying(50)
+);
+
+
+ALTER TABLE public.sys_attachment_settings OWNER TO AOXX;
+
+--
+-- TOC entry 182 (class 1259 OID 34771)
+-- Name: sys_authorization; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE sys_authorization (
+    role_id character varying(100) NOT NULL,
+    report_function_code character varying(100) NOT NULL,
+    id integer NOT NULL
+);
+
+
+ALTER TABLE public.sys_authorization OWNER TO AOXX;
+
+--
+-- TOC entry 183 (class 1259 OID 34774)
+-- Name: sys_authorization_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE sys_authorization_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.sys_authorization_id_seq OWNER TO AOXX;
+
+--
+-- TOC entry 2107 (class 0 OID 0)
+-- Dependencies: 183
+-- Name: sys_authorization_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE sys_authorization_id_seq OWNED BY sys_authorization.id;
+
+
+--
+-- TOC entry 184 (class 1259 OID 34776)
+-- Name: sys_dfn_repdetail; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE sys_dfn_repdetail (
+    report_code character varying(50) NOT NULL,
+    report_name character varying(40) DEFAULT 'SampleReport'::character varying,
+    report_order smallint DEFAULT 1 NOT NULL,
+    sql_from character varying(100),
+    connection_string text,
+    sql_keyfields text,
+    multiselect boolean,
+    gis_theme_layer boolean,
+    report_settings text,
+    deeplink boolean DEFAULT true NOT NULL,
+    edit_table character varying(50),
+    document_folder character varying(50),
+    tabs character varying(300),
+    implicit_where character varying(500),
+    add_record_key character varying(50),
+    copy_sql text,
+    report_help text DEFAULT ''::text
+);
+
+
+ALTER TABLE public.sys_dfn_repdetail OWNER TO AOXX;
+
+--
+-- TOC entry 185 (class 1259 OID 34786)
+-- Name: sys_group_color; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE sys_group_color (
+    reportcode character varying NOT NULL,
+    groupby character varying NOT NULL,
+    groupcode character varying NOT NULL,
+    colorcode character varying
+);
+
+
+ALTER TABLE public.sys_group_color OWNER TO AOXX;
+
+--
+-- TOC entry 186 (class 1259 OID 34792)
+-- Name: sys_meta_authorization_v; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW sys_meta_authorization_v AS
+SELECT m.id, m.fieldname, m.caption, m.mandatory, m.lovc, m.lovp, m.lovcp, m.minvalue, m.maxvalue, m.decimals, m.strlen, m.displen, m.tablename, m.report_code FROM sys_metadata m WHERE ((m.report_code)::text = 'SYS_AUTHORIZATION'::text) ORDER BY m.id;
+
+
+ALTER TABLE public.sys_meta_authorization_v OWNER TO AOXX;
+
+--
+-- TOC entry 187 (class 1259 OID 34796)
+-- Name: sys_meta_dfn_repdetail_v; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW sys_meta_dfn_repdetail_v AS
+SELECT m.id, m.fieldname, m.caption, m.mandatory, m.lovc, m.lovp, m.lovcp, m.minvalue, m.maxvalue, m.decimals, m.strlen, m.displen, m.tablename, m.report_code FROM sys_metadata m WHERE ((m.report_code)::text = 'SYS_DFN_REPDETAIL'::text) ORDER BY m.id;
+
+
+ALTER TABLE public.sys_meta_dfn_repdetail_v OWNER TO AOXX;
+
+--
+-- TOC entry 188 (class 1259 OID 34800)
+-- Name: sys_meta_rep_func_v; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW sys_meta_rep_func_v AS
+SELECT m.id, m.fieldname, m.caption, m.mandatory, m.lovc, m.lovp, m.lovcp, m.minvalue, m.maxvalue, m.decimals, m.strlen, m.displen, m.tablename, m.report_code FROM sys_metadata m WHERE ((m.report_code)::text = 'SYS_REPORT_FUNCTIONS'::text) ORDER BY m.id;
+
+
+ALTER TABLE public.sys_meta_rep_func_v OWNER TO AOXX;
+
+--
+-- TOC entry 189 (class 1259 OID 34804)
+-- Name: sys_meta_user_reg_v; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW sys_meta_user_reg_v AS
+SELECT m.id, m.fieldname, m.caption, m.mandatory, m.lovc, m.lovp, m.lovcp, m.minvalue, m.maxvalue, m.decimals, m.strlen, m.displen, m.tablename, m.report_code FROM sys_metadata m WHERE ((m.report_code)::text = 'SYS_USER_REG'::text);
+
+
+ALTER TABLE public.sys_meta_user_reg_v OWNER TO AOXX;
+
+--
+-- TOC entry 190 (class 1259 OID 34808)
+-- Name: sys_meta_user_role_v; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW sys_meta_user_role_v AS
+SELECT m.id, m.fieldname, m.caption, m.mandatory, m.lovc, m.lovp, m.lovcp, m.minvalue, m.maxvalue, m.decimals, m.strlen, m.displen, m.tablename, m.report_code FROM sys_metadata m WHERE ((m.report_code)::text = 'SYS_META_USR_ROLE'::text) ORDER BY m.id;
+
+
+ALTER TABLE public.sys_meta_user_role_v OWNER TO AOXX;
+
+--
+-- TOC entry 191 (class 1259 OID 34812)
+-- Name: sys_record_lock; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE sys_record_lock (
+    id integer NOT NULL,
+    sid character varying(50) NOT NULL,
+    locked_by character varying(30),
+    report_code character varying(50),
+    key_field character varying(30),
+    key_value character varying(100),
+    locked_at timestamp without time zone
+);
+
+
+ALTER TABLE public.sys_record_lock OWNER TO AOXX;
+
+--
+-- TOC entry 192 (class 1259 OID 34815)
+-- Name: sys_record_lock_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE sys_record_lock_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.sys_record_lock_id_seq OWNER TO AOXX;
+
+--
+-- TOC entry 2108 (class 0 OID 0)
+-- Dependencies: 192
+-- Name: sys_record_lock_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE sys_record_lock_id_seq OWNED BY sys_record_lock.id;
+
+
+--
+-- TOC entry 193 (class 1259 OID 34817)
+-- Name: sys_user_defined_settings; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE sys_user_defined_settings (
+    user_code character varying(100) NOT NULL,
+    report_code character varying(40) NOT NULL,
+    report_settings text
+);
+
+
+ALTER TABLE public.sys_user_defined_settings OWNER TO AOXX;
+
+--
+-- TOC entry 194 (class 1259 OID 34823)
+-- Name: sys_user_reg; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE sys_user_reg (
+    id integer NOT NULL,
+    user_id character varying(50) NOT NULL,
+    user_pass character varying(50) DEFAULT ''::character varying,
+    user_temp_pass character varying(50) DEFAULT ''::character varying,
+    user_name character varying(50),
+    user_email character varying(100),
+    domain character varying(500)
+);
+
+
+ALTER TABLE public.sys_user_reg OWNER TO AOXX;
+
+--
+-- TOC entry 195 (class 1259 OID 34831)
+-- Name: sys_user_role_relation; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE sys_user_role_relation (
+    id integer NOT NULL,
+    user_name character varying(50) DEFAULT 'DummyUser'::character varying,
+    rolename character varying(15) DEFAULT 'DummyRole'::character varying
+);
+
+
+ALTER TABLE public.sys_user_role_relation OWNER TO AOXX;
+
+--
+-- TOC entry 196 (class 1259 OID 34836)
+-- Name: user_reg_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE user_reg_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.user_reg_id_seq OWNER TO AOXX;
+
+--
+-- TOC entry 2109 (class 0 OID 0)
+-- Dependencies: 196
+-- Name: user_reg_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE user_reg_id_seq OWNED BY sys_user_reg.id;
+
+
+--
+-- TOC entry 197 (class 1259 OID 34838)
+-- Name: user_role_relation_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE user_role_relation_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.user_role_relation_id_seq OWNER TO AOXX;
+
+--
+-- TOC entry 2110 (class 0 OID 0)
+-- Dependencies: 197
+-- Name: user_role_relation_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE user_role_relation_id_seq OWNED BY sys_user_role_relation.id;
+
+
+--
+-- TOC entry 1936 (class 2604 OID 34840)
+-- Name: id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sys_authorization ALTER COLUMN id SET DEFAULT nextval('sys_authorization_id_seq'::regclass);
+
+
+--
+-- TOC entry 1921 (class 2604 OID 34841)
+-- Name: id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sys_commonfunctions ALTER COLUMN id SET DEFAULT nextval('chalo_commonfunctions_id_seq'::regclass);
+
+
+--
+-- TOC entry 1924 (class 2604 OID 34842)
+-- Name: id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sys_metadata ALTER COLUMN id SET DEFAULT nextval('metadata_id_seq'::regclass);
+
+
+--
+-- TOC entry 1941 (class 2604 OID 34843)
+-- Name: id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sys_record_lock ALTER COLUMN id SET DEFAULT nextval('sys_record_lock_id_seq'::regclass);
+
+
+--
+-- TOC entry 1929 (class 2604 OID 34844)
+-- Name: id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sys_report_functions ALTER COLUMN id SET DEFAULT nextval('report_functions_id_seq'::regclass);
+
+
+--
+-- TOC entry 1930 (class 2604 OID 34845)
+-- Name: id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sys_report_linking ALTER COLUMN id SET DEFAULT nextval('report_linking_id_seq'::regclass);
+
+
+--
+-- TOC entry 1931 (class 2604 OID 34846)
+-- Name: id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sys_securityinfo ALTER COLUMN id SET DEFAULT nextval('securityinfo_id_seq'::regclass);
+
+
+--
+-- TOC entry 1944 (class 2604 OID 34847)
+-- Name: id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sys_user_reg ALTER COLUMN id SET DEFAULT nextval('user_reg_id_seq'::regclass);
+
+
+--
+-- TOC entry 1947 (class 2604 OID 34848)
+-- Name: id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sys_user_role_relation ALTER COLUMN id SET DEFAULT nextval('user_role_relation_id_seq'::regclass);
+
+
+--
+-- TOC entry 1953 (class 2606 OID 34851)
+-- Name: PK_Metadata_id; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_metadata
+    ADD CONSTRAINT "PK_Metadata_id" PRIMARY KEY (id);
+
+
+--
+-- TOC entry 1965 (class 2606 OID 34853)
+-- Name: attachment_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_attachment_settings
+    ADD CONSTRAINT attachment_settings_pkey PRIMARY KEY (report_code);
+
+
+--
+-- TOC entry 1967 (class 2606 OID 34855)
+-- Name: auth_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_authorization
+    ADD CONSTRAINT auth_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 1969 (class 2606 OID 34857)
+-- Name: auth_ukey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_authorization
+    ADD CONSTRAINT auth_ukey UNIQUE (role_id, report_function_code);
+
+
+--
+-- TOC entry 1949 (class 2606 OID 34859)
+-- Name: chalo_cf_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_commonfunctions
+    ADD CONSTRAINT chalo_cf_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 1951 (class 2606 OID 34861)
+-- Name: chalo_cf_ukey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_commonfunctions
+    ADD CONSTRAINT chalo_cf_ukey UNIQUE (role_id, function_code, action);
+
+
+--
+-- TOC entry 1977 (class 2606 OID 34863)
+-- Name: chalo_user_defined_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_user_defined_settings
+    ADD CONSTRAINT chalo_user_defined_settings_pkey PRIMARY KEY (user_code, report_code);
+
+
+--
+-- TOC entry 1973 (class 2606 OID 34865)
+-- Name: group_color_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_group_color
+    ADD CONSTRAINT group_color_pkey PRIMARY KEY (reportcode, groupby, groupcode);
+
+
+--
+-- TOC entry 1971 (class 2606 OID 34867)
+-- Name: ob_report_code; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_dfn_repdetail
+    ADD CONSTRAINT ob_report_code PRIMARY KEY (report_code);
+
+
+--
+-- TOC entry 1955 (class 2606 OID 34869)
+-- Name: report_functions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_report_functions
+    ADD CONSTRAINT report_functions_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 1957 (class 2606 OID 34871)
+-- Name: report_functions_ukey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_report_functions
+    ADD CONSTRAINT report_functions_ukey UNIQUE (report_code, function_name, parameters);
+
+
+--
+-- TOC entry 1959 (class 2606 OID 34873)
+-- Name: report_linking_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_report_linking
+    ADD CONSTRAINT report_linking_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 1961 (class 2606 OID 34875)
+-- Name: report_linking_ukey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_report_linking
+    ADD CONSTRAINT report_linking_ukey UNIQUE (source_report_code, destination_report_code);
+
+
+--
+-- TOC entry 1963 (class 2606 OID 34877)
+-- Name: securityinfo_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_securityinfo
+    ADD CONSTRAINT securityinfo_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 1975 (class 2606 OID 34879)
+-- Name: sys_record_lock_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_record_lock
+    ADD CONSTRAINT sys_record_lock_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 1979 (class 2606 OID 34881)
+-- Name: user_reg_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_user_reg
+    ADD CONSTRAINT user_reg_pkey PRIMARY KEY (user_id);
+
+
+--
+-- TOC entry 1981 (class 2606 OID 34883)
+-- Name: user_role_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_user_role_relation
+    ADD CONSTRAINT user_role_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 1983 (class 2606 OID 34885)
+-- Name: user_role_ukey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY sys_user_role_relation
+    ADD CONSTRAINT user_role_ukey UNIQUE (user_name, rolename);
+
+
+--
+-- TOC entry 1984 (class 2620 OID 34886)
+-- Name: auto_security_info_clear; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER auto_security_info_clear AFTER INSERT ON sys_securityinfo FOR EACH ROW EXECUTE PROCEDURE remove_old_session();
+
+
+--
+-- TOC entry 2101 (class 0 OID 0)
+-- Dependencies: 8
+-- Name: public; Type: ACL; Schema: -; Owner: postgres
+--
+
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+REVOKE ALL ON SCHEMA public FROM postgres;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO PUBLIC;
+
+
+-- Completed on 2016-02-17 10:53:21
+
+--
+-- PostgreSQL database dump complete
+--
+
